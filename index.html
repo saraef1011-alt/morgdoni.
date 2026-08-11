@@ -1,0 +1,628 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <title>مرغ دونی | نسخه کامل با مودال</title>
+    <script src="/socket.io/socket.io.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        body { background: linear-gradient(145deg, #0d4a1d, #1a6d2b); min-height: 100vh; padding: 15px; }
+        .main-container { max-width: 1400px; margin: 0 auto; display: flex; gap: 20px; flex-wrap: wrap; }
+        .game-area { flex: 3; min-width: 280px; background: #fef7e6; border-radius: 50px; padding: 20px; box-shadow: 0 15px 35px rgba(0,0,0,0.5); }
+        .chat-area { flex: 1.2; min-width: 280px; background: #fcf0dd; border-radius: 50px; padding: 20px; box-shadow: 0 15px 35px rgba(0,0,0,0.5); display: flex; flex-direction: column; gap: 12px; }
+        h1 { text-align: center; color: #d47a2a; font-size: 1.8rem; text-shadow: 2px 2px 0 #ffe0a3; margin-bottom: 10px; }
+        .welcome-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.92); display: flex; justify-content: center; align-items: center; z-index: 3000; animation: fadeOutWelcome 3.5s forwards; pointer-events: none; }
+        .welcome-card { background: linear-gradient(145deg, #ffefc0, #fde5b0); padding: 40px 60px; border-radius: 90px; text-align: center; animation: bounceWelcome 0.9s ease-out; border: 4px solid #d47a2a; box-shadow: 0 0 60px rgba(212,122,42,0.5); }
+        .welcome-card h1 { font-size: 2.8rem; color: #d47a2a; }
+        .welcome-card p { font-size: 1.3rem; color: #7b3f00; margin-top: 10px; }
+        @keyframes bounceWelcome { 0% { transform: scale(0.2) rotate(-10deg); opacity: 0; } 50% { transform: scale(1.1); } 100% { transform: scale(1); opacity: 1; } }
+        @keyframes fadeOutWelcome { 0% { opacity: 1; visibility: visible; } 85% { opacity: 1; } 100% { opacity: 0; visibility: hidden; } }
+        .join-panel { text-align: center; background: #fffae8; border-radius: 40px; padding: 25px; margin-bottom: 20px; }
+        .join-panel input { padding: 12px 20px; border-radius: 40px; border: 2px solid #f7b05e; font-size: 1rem; margin: 5px; width: 200px; background: white; }
+        .join-panel button { padding: 12px 25px; border-radius: 40px; border: none; font-size: 1rem; font-weight: bold; margin: 5px; cursor: pointer; background: #27ae60; color: white; box-shadow: 0 4px 0 #1a6b3b; transition: 0.05s linear; }
+        .join-panel button:active { transform: translateY(3px); box-shadow: 0 1px 0 #1a6b3b; }
+        .room-code { text-align: center; background: #ffecb3; padding: 8px; border-radius: 40px; margin-bottom: 10px; font-weight: bold; font-size: 0.95rem; }
+        .turn-box { text-align: center; background: linear-gradient(145deg, #d48a3a, #b8732a); color: white; padding: 12px; border-radius: 60px; margin-bottom: 15px; font-weight: bold; font-size: 1.1rem; box-shadow: inset 0 -3px 0 #8a5a1a; }
+        .status-bar { background: #2d2b1a; color: #ffefb0; padding: 8px 15px; border-radius: 30px; margin-bottom: 15px; text-align: center; font-size: 0.85rem; border: 1px solid #5a4a2a; }
+        .status-bar span { color: #ffd966; font-weight: bold; }
+        .players { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 15px; margin-bottom: 20px; }
+        .player { background: #fff7e5; border-radius: 35px; padding: 15px; border: 3px solid #f7b05e; transition: 0.1s; }
+        .current { border: 4px solid #2ecc71; background: #f8fff0; box-shadow: 0 0 0 4px #f1c40f; }
+        .player-name { font-size: 1rem; font-weight: bold; display: flex; justify-content: space-between; margin-bottom: 8px; color: #7b3f00; }
+        .stats { display: flex; gap: 15px; margin-bottom: 8px; font-size: 0.85rem; }
+        .eggs { color: #e67e22; font-weight: bold; }
+        .chicks { color: #2ecc71; font-weight: bold; }
+        .hand { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; margin-top: 8px; min-height: 75px; }
+        .card { background: linear-gradient(145deg, #f3b33d, #e67e22); width: 55px; height: 75px; border-radius: 12px; display: flex; flex-direction: column; align-items: center; justify-content: center; font-weight: bold; box-shadow: 0 5px 0 #a45d1a; text-align: center; cursor: pointer; transition: 0.05s linear; font-size: 0.65rem; color: #2c1a0a; }
+        .card span { font-size: 1.8rem; }
+        .card-back { background: linear-gradient(145deg, #2c5a2e, #1a3a1a); box-shadow: 0 4px 0 #0f2a0f; color: transparent; }
+        .card-back::after { content: "🐔"; color: #ffd966; font-size: 2rem; display: flex; align-items: center; justify-content: center; height: 100%; }
+        .card.selected { background: #2ecc71; color: white; box-shadow: 0 0 0 3px white, 0 5px 0 #1b8a4a; transform: scale(0.97); }
+        .actions { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; margin: 15px 0; }
+        .action-btn { background: #ffa047; border: none; padding: 8px 14px; border-radius: 40px; font-weight: bold; cursor: pointer; box-shadow: 0 4px 0 #b4621a; transition: 0.05s linear; font-size: 0.75rem; color: #2c1a0a; }
+        .action-btn:active { transform: translateY(3px); box-shadow: 0 1px 0 #b4621a; }
+        .action-btn.discard { background: #e67e22; box-shadow: 0 4px 0 #a0551a; }
+        .reset-btn { background: #c0392b; color: white; width: 100%; padding: 10px; margin-top: 10px; box-shadow: 0 4px 0 #8a2a1f; }
+        .reset-btn:active { box-shadow: 0 1px 0 #8a2a1f; }
+        .game-log { background: #2d2b1a; color: #ffefb0; padding: 10px; border-radius: 25px; height: 110px; overflow-y: auto; font-size: 0.75rem; margin-top: 15px; border: 1px solid #5a4a2a; }
+        .defense-btn { background: #f1c40f; border: none; padding: 6px; border-radius: 40px; margin-top: 8px; width: 100%; cursor: pointer; font-weight: bold; font-size: 0.7rem; box-shadow: 0 3px 0 #b7950b; transition: 0.05s linear; }
+        .defense-btn:active { transform: translateY(2px); box-shadow: 0 1px 0 #b7950b; }
+        .chat-messages { background: #fff2df; border-radius: 30px; height: 280px; overflow-y: auto; padding: 15px; font-size: 0.85rem; border: 2px solid #e6cba0; }
+        .chat-message { background: #fff0d0; padding: 10px 14px; border-radius: 20px; margin-bottom: 8px; border-right: 4px solid #d47a2a; }
+        .chat-sender { font-weight: bold; color: #d47a2a; font-size: 0.8rem; }
+        .chat-time { font-size: 0.65rem; color: #999; margin-right: 6px; }
+        .chat-input-area { display: flex; gap: 10px; margin-top: 5px; }
+        .chat-input { flex: 1; padding: 12px; border-radius: 40px; border: 2px solid #e6cba0; background: white; font-size: 1rem; }
+        .send-btn { background: #f5a623; border: none; padding: 0 25px; border-radius: 40px; font-weight: bold; cursor: pointer; font-size: 1rem; box-shadow: 0 4px 0 #b87a1a; transition: 0.05s; }
+        .send-btn:active { transform: translateY(3px); box-shadow: 0 1px 0 #b87a1a; }
+        .gif-strip { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 8px; }
+        .gif-btn { background: #ff914d; border: none; padding: 6px 14px; border-radius: 40px; font-size: 0.8rem; cursor: pointer; font-weight: bold; box-shadow: 0 3px 0 #b86a1a; transition: 0.05s; }
+        .gif-btn:active { transform: translateY(2px); box-shadow: 0 1px 0 #b86a1a; }
+        .big-screen-message { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(0,0,0,0.88); color: #ffd966; font-size: 2.8rem; font-weight: bold; padding: 30px 50px; border-radius: 70px; text-align: center; z-index: 2500; animation: messagePop 1.2s forwards; backdrop-filter: blur(12px); border: 3px solid #ffd966; box-shadow: 0 0 60px rgba(255,215,0,0.3); min-width: 200px; }
+        @keyframes messagePop { 0% { opacity: 0; transform: translate(-50%,-50%) scale(0.2) rotate(-15deg); } 30% { transform: translate(-50%,-50%) scale(1.2) rotate(3deg); } 60% { transform: translate(-50%,-50%) scale(0.95) rotate(-2deg); } 80% { opacity: 1; } 100% { opacity: 0; visibility: hidden; transform: translate(-50%,-50%) scale(0.9); } }
+        .center-gif { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(0,0,0,0.85); color: #ffd966; font-size: 2.2rem; font-weight: bold; padding: 25px 45px; border-radius: 60px; text-align: center; z-index: 2000; animation: fadeOutGif 2.5s forwards; backdrop-filter: blur(10px); border: 2px solid #ffd966; }
+        @keyframes fadeOutGif { 0% { opacity: 1; transform: translate(-50%,-50%) scale(0.7); } 20% { transform: translate(-50%,-50%) scale(1.1); } 80% { opacity: 1; } 100% { opacity: 0; visibility: hidden; transform: translate(-50%,-50%) scale(0.9); } }
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); backdrop-filter: blur(6px); display: flex; justify-content: center; align-items: center; z-index: 4000; animation: modalFadeIn 0.3s ease-out; }
+        @keyframes modalFadeIn { 0% { opacity: 0; transform: scale(0.9); } 100% { opacity: 1; transform: scale(1); } }
+        .modal-box { background: linear-gradient(145deg, #fef7e6, #fcf0dd); padding: 30px 40px; border-radius: 60px; max-width: 450px; width: 90%; text-align: center; box-shadow: 0 20px 60px rgba(0,0,0,0.5); border: 3px solid #d47a2a; animation: modalBounce 0.5s ease-out; max-height: 80vh; overflow-y: auto; }
+        @keyframes modalBounce { 0% { transform: scale(0.5) rotate(-5deg); opacity: 0; } 60% { transform: scale(1.05) rotate(1deg); } 100% { transform: scale(1) rotate(0deg); opacity: 1; } }
+        .modal-box h3 { color: #d47a2a; font-size: 1.5rem; margin-bottom: 20px; }
+        .modal-btn { background: #ffa047; border: none; padding: 10px 20px; border-radius: 40px; margin: 6px; cursor: pointer; font-weight: bold; font-size: 0.95rem; box-shadow: 0 3px 0 #b4621a; transition: 0.05s; }
+        .modal-btn:active { transform: translateY(3px); box-shadow: 0 1px 0 #b4621a; }
+        .modal-btn.green { background: #27ae60; color: white; box-shadow: 0 3px 0 #1a6b3b; }
+        .modal-btn.red { background: #c0392b; color: white; box-shadow: 0 3px 0 #8a2a1f; }
+        .modal-btn.purple { background: #8e44ad; color: white; box-shadow: 0 3px 0 #6c3483; }
+        .modal-close { background: #7f8c8d; color: white; box-shadow: 0 3px 0 #5d6d7e; }
+        .modal-grid { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin: 15px 0; }
+        .modal-grid .modal-btn { flex: 1 0 auto; min-width: 80px; }
+        .modal-subtitle { color: #7b3f00; font-size: 0.9rem; margin-bottom: 10px; }
+        @media (max-width: 700px) { .card { width: 48px; height: 65px; } .card span { font-size: 1.4rem; } .action-btn { padding: 6px 12px; font-size: 0.7rem; } .big-screen-message { font-size: 1.8rem; padding: 20px 30px; white-space: normal; width: 85%; } .center-gif { font-size: 1.4rem; padding: 15px 25px; white-space: normal; width: 85%; } .modal-box { padding: 20px; } .modal-box h3 { font-size: 1.2rem; } }
+    </style>
+</head>
+<body>
+
+<div class="welcome-overlay" id="welcomeAnim">
+    <div class="welcome-card">
+        <h1>🐔 مرغ دونی 🐔</h1>
+        <p style="font-size:0.9rem; margin-top:8px;">طراحی شده توسط <strong>هومن فکری فرد</strong></p>
+    </div>
+</div>
+
+<div class="main-container" id="gameContainer" style="display:none;">
+    <div class="game-area">
+        <h1>🐔 مرغ دونی 🐔</h1>
+
+        <div class="join-panel" id="joinPanel">
+            <input type="text" id="playerName" placeholder="نام شما">
+            <input type="text" id="roomIdInput" placeholder="کد اتاق (برای ورود)">
+            <div>
+                <button id="createRoomBtn">✨ ساخت اتاق جدید</button>
+                <button id="joinRoomBtn">🚪 ورود به اتاق</button>
+            </div>
+            <div id="roomStatus" style="margin-top:10px; color:#7b3f00;"></div>
+        </div>
+
+        <div id="gamePanel" style="display:none;">
+            <div class="room-code">🏠 کد اتاق: <span id="roomCodeSpan">---</span></div>
+            <div class="turn-box" id="turnText">🎯 در انتظار شروع...</div>
+            
+            <div class="status-bar">📊 وضعیت: <span id="statusText">در حال اتصال...</span></div>
+
+            <div class="players" id="playersArea"></div>
+            <div id="actionsPanel" style="display:none;">
+                <div class="actions">
+                    <button class="action-btn" id="layBtn">🥚 تخم گذاری</button>
+                    <button class="action-btn" id="hatchBtn">🐥 جوجه کردن</button>
+                    <button class="action-btn" id="foxBtn">🦊 روباه</button>
+                    <button class="action-btn" id="snakeBtn">🐍 مار</button>
+                    <button class="action-btn" id="trapBtn">🎯 تله</button>
+                    <button class="action-btn" id="drawBtn">🎴 کشیدن کارت</button>
+                    <button class="action-btn discard" id="discardBtn">🗑️ باطل کردن</button>
+                    <button class="action-btn" id="endTurnBtn">⏹️ پایان نوبت</button>
+                    <button class="action-btn" id="bigMessageBtn" style="background:#8e44ad; color:white; box-shadow:0 4px 0 #6c3483;">📢 استیکر</button>
+                </div>
+            </div>
+            <button class="action-btn reset-btn" id="startGameBtn" style="display:none; background:#27ae60; color:white; box-shadow:0 4px 0 #1a6b3b;">🎮 شروع بازی</button>
+            <div class="game-log" id="gameLog"></div>
+        </div>
+    </div>
+
+    <div class="chat-area">
+        <div style="text-align:center; font-weight:bold; font-size:1.1rem;">💬 چت</div>
+        <div class="chat-messages" id="chatMessages">
+            <div class="chat-message"><span class="chat-sender">🐣 سیستم</span><span class="chat-time">همین الآن</span><br>به چت خوش آمدید!</div>
+        </div>
+        <div class="chat-input-area">
+            <input type="text" class="chat-input" id="chatInput" placeholder="پیام بفرست...">
+            <button class="send-btn" id="sendBtn">📨</button>
+        </div>
+        <div class="gif-strip">
+            <button class="gif-btn" onclick="showCenterGif('😂🐔 مرغ رقصون 🤣')">😂🐔</button>
+            <button class="gif-btn" onclick="showCenterGif('🎬 مرغ تخم طلا 🤯')">🥚🎬</button>
+            <button class="gif-btn" onclick="showCenterGif('🐓🤣 خروس کونگ فو')">🐓🤣</button>
+            <button class="gif-btn" onclick="showCenterGif('🦊 روباه فراری 🤣')">🦊💨</button>
+            <button class="gif-btn" onclick="showCenterGif('🐍 مار ترسیده 😂')">🐍😱</button>
+        </div>
+        <div class="gif-display" id="gifDisplay" onclick="randomCenterGif()" style="text-align:center; background:#ffefcf; border-radius:40px; padding:8px; cursor:pointer; font-weight:bold;">🎬 کلیک کن برای گیف خنده!</div>
+    </div>
+</div>
+
+<script>
+    // ===== انیمیشن ورود =====
+    setTimeout(() => {
+        let w = document.getElementById('welcomeAnim');
+        if(w) w.style.display = 'none';
+        document.getElementById('gameContainer').style.display = 'flex';
+    }, 3000);
+
+    // ===== صدا =====
+    function playClick() {
+        try {
+            let ctx = new (window.AudioContext || window.webkitAudioContext)();
+            let osc = ctx.createOscillator();
+            let gain = ctx.createGain();
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.frequency.value = 880;
+            gain.gain.value = 0.1;
+            osc.start();
+            gain.gain.exponentialRampToValueAtTime(0.00001, ctx.currentTime + 0.2);
+            osc.stop(ctx.currentTime + 0.15);
+        } catch(e) { console.log('صدا غیرفعال'); }
+    }
+
+    // ===== پیام و گیف =====
+    function showBigMessage(text, isExciting = false) {
+        let div = document.createElement('div');
+        div.className = 'big-screen-message';
+        if(isExciting) {
+            div.style.color = '#ff6b6b';
+            div.style.borderColor = '#ff6b6b';
+            div.style.boxShadow = '0 0 60px rgba(255, 100, 100, 0.5)';
+        }
+        div.innerHTML = text;
+        document.body.appendChild(div);
+        setTimeout(() => { if(div && div.remove) div.remove(); }, 1800);
+        playClick();
+    }
+    function showCenterGif(text) {
+        let div = document.createElement('div');
+        div.className = 'center-gif';
+        div.innerHTML = `🎬✨ ${text} ✨😂`;
+        document.body.appendChild(div);
+        setTimeout(() => { if(div && div.remove) div.remove(); }, 2500);
+        playClick();
+    }
+    function randomCenterGif() {
+        let g = ["😂🐔 مرغ رقصون 🤣","🎬 مرغ تخم طلا 🤯","🐓🤣 خروس کونگ فو","🦊 روباه فراری 🤣","🐍 مار ترسیده 😂","🔥 تخم سورپرایز 💥","🎉 جوجه‌ها جشن گرفتن"];
+        let r = g[Math.floor(Math.random() * g.length)];
+        showCenterGif(r);
+    }
+
+    // ===== مودال =====
+    let modalElement = null;
+    function showModal(title, buttons, subtitle = '') {
+        closeModal();
+        let overlay = document.createElement('div');
+        overlay.className = 'modal-overlay';
+        overlay.id = 'modalOverlay';
+        let box = document.createElement('div');
+        box.className = 'modal-box';
+        let html = `<h3>${title}</h3>`;
+        if (subtitle) html += `<div class="modal-subtitle">${subtitle}</div>`;
+        html += `<div class="modal-grid">`;
+        buttons.forEach(b => {
+            const btnClass = b.class || '';
+            html += `<button class="modal-btn ${btnClass}" onclick="(function(){${b.action.toString()}})()">${b.text}</button>`;
+        });
+        html += `<button class="modal-btn modal-close" onclick="closeModal()">❌ بستن</button>`;
+        html += `</div>`;
+        box.innerHTML = html;
+        overlay.appendChild(box);
+        document.body.appendChild(overlay);
+        modalElement = overlay;
+        setTimeout(() => {
+            let btns = overlay.querySelectorAll('.modal-btn:not(.modal-close)');
+            btns.forEach((btn, idx) => {
+                btn.onclick = () => { buttons[idx].action(); };
+            });
+            let close = overlay.querySelector('.modal-close');
+            if(close) close.onclick = closeModal;
+        }, 10);
+    }
+    function closeModal() {
+        if(modalElement) { modalElement.remove(); modalElement = null; }
+    }
+
+    // ===== استیکر =====
+    function showCustomMessage() {
+        let stickers = [
+            { emoji: '🎉', text: 'تبریک میگم!' },
+            { emoji: '🔥', text: 'عالی بود!' },
+            { emoji: '😱', text: 'وااای چه بازی!' },
+            { emoji: '😂', text: 'خندیدم!' },
+            { emoji: '💪', text: 'قوی!' },
+            { emoji: '🤯', text: 'منفجر شدم!' },
+            { emoji: '🐔', text: 'مرغ برنده!' },
+            { emoji: '🦊', text: 'روباه حیله‌گر!' },
+            { emoji: '🎯', text: 'هدف گرفتم!' },
+            { emoji: '❤️', text: 'دوستت دارم!' }
+        ];
+        let btns = stickers.map(s => ({ 
+            text: `${s.emoji} ${s.text}`, 
+            class: 'purple',
+            action: () => { 
+                let msg = `${s.emoji} ${s.text}`;
+                addChatMessage(myName || 'شما', msg);
+                showBigMessage(msg, true);
+                if (socket && roomId) {
+                    socket.emit('chatMessage', { roomId, message: msg });
+                }
+                closeModal();
+            } 
+        }));
+        showModal('📢 استیکر', btns);
+    }
+
+    // ===== بازی آنلاین =====
+    let socket = null;
+    let roomId = null;
+    let myId = null;
+    let myName = '';
+    let selectedCard = null;
+    let gameState = null;
+
+    function updateStatus(text) {
+        const el = document.getElementById('statusText');
+        if (el) el.innerHTML = text;
+    }
+
+    function addLog(msg) {
+        const logDiv = document.getElementById('gameLog');
+        if (logDiv) {
+            logDiv.innerHTML += `<div>🐔 ${msg}</div>`;
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+        console.log(msg);
+        playClick();
+    }
+
+    function connectSocket() {
+        if (socket) return;
+        socket = io();
+        
+        socket.on('connect', () => { 
+            myId = socket.id; 
+            updateStatus('✅ متصل به سرور');
+            document.getElementById('roomStatus').innerHTML = '✅ متصل به سرور';
+            addLog('✅ به سرور متصل شدی!');
+        });
+        
+        socket.on('connect_error', () => {
+            updateStatus('❌ اتصال قطع شد!');
+            document.getElementById('roomStatus').innerHTML = '❌ مشکل در اتصال به سرور';
+        });
+        
+        socket.on('roomCreated', (data) => {
+            roomId = data.roomId;
+            document.getElementById('roomCodeSpan').innerText = roomId;
+            document.getElementById('roomStatus').innerHTML = `✅ اتاق ${roomId} ساخته شد!`;
+            updateStatus(`🏠 اتاق ${roomId} - منتظر بازیکنان`);
+            document.getElementById('gamePanel').style.display = 'block';
+            document.getElementById('joinPanel').style.display = 'none';
+            document.getElementById('actionsPanel').style.display = 'none';
+            addLog(`🏠 اتاق ${roomId} ساخته شد`);
+        });
+        
+        socket.on('roomUpdate', (room) => {
+            renderRoom(room);
+            const me = room.players.find(p => p.id === myId);
+            if (me && room.host === myId && room.players.length >= 2) {
+                document.getElementById('startGameBtn').style.display = 'block';
+                updateStatus(`👥 ${room.players.length} بازیکن - آماده شروع`);
+            } else {
+                document.getElementById('startGameBtn').style.display = 'none';
+                updateStatus(`👥 ${room.players.length} بازیکن - منتظر دیگران`);
+            }
+        });
+        
+        socket.on('gameState', (state) => {
+            gameState = state;
+            renderGame(state);
+            const me = state.players.find(p => p.id === myId);
+            if (me && state.currentTurn === myId && !state.winner) {
+                document.getElementById('actionsPanel').style.display = 'block';
+                updateStatus(`🎯 نوبت شما - ${me.hand.length} کارت`);
+            } else {
+                document.getElementById('actionsPanel').style.display = 'none';
+                if (state.winner) {
+                    const winner = state.players.find(p => p.id === state.winner);
+                    updateStatus(`🏆 برنده: ${winner ? winner.name : '...'} 🏆`);
+                } else {
+                    const current = state.players.find(p => p.id === state.currentTurn);
+                    updateStatus(`🎯 نوبت: ${current ? current.name : '...'}`);
+                }
+            }
+            if (state.winner) {
+                const winner = state.players.find(p => p.id === state.winner);
+                showBigMessage(`🏆 برنده: ${winner ? winner.name : '...'} 🏆`);
+            }
+        });
+        
+        socket.on('roomError', (msg) => { alert(msg); });
+        socket.on('chatMessage', (data) => {
+            addChatMessage(data.sender, data.message, data.time);
+        });
+        socket.on('actionDone', (data) => {
+            addChatMessage('🎮 سیستم', `${data.player} ${data.action}`);
+            showBigMessage(`🎮 ${data.player} ${data.action}`, false);
+        });
+    }
+
+    function createRoom() {
+        let name = document.getElementById('playerName').value.trim();
+        if (!name) { alert('نام خود را وارد کن'); return; }
+        myName = name;
+        if (!socket) connectSocket();
+        let roomCode = Math.random().toString(36).substring(2, 8).toUpperCase();
+        setTimeout(() => {
+            socket.emit('createRoom', { roomId: roomCode, playerName: name });
+            document.getElementById('joinPanel').style.display = 'none';
+            document.getElementById('gamePanel').style.display = 'block';
+            document.getElementById('roomCodeSpan').innerText = roomCode;
+        }, 300);
+    }
+
+    function joinRoom() {
+        let name = document.getElementById('playerName').value.trim();
+        let code = document.getElementById('roomIdInput').value.trim().toUpperCase();
+        if (!name || !code) { alert('نام و کد اتاق را وارد کن'); return; }
+        myName = name;
+        if (!socket) connectSocket();
+        setTimeout(() => {
+            socket.emit('joinRoom', { roomId: code, playerName: name });
+            roomId = code;
+            document.getElementById('joinPanel').style.display = 'none';
+            document.getElementById('gamePanel').style.display = 'block';
+            document.getElementById('roomCodeSpan').innerText = code;
+            document.getElementById('roomStatus').innerHTML = `✅ به اتاق ${code} پیوستی!`;
+            addLog(`🚪 به اتاق ${code} پیوستی`);
+        }, 300);
+    }
+
+    function startGame() {
+        socket.emit('startGame', { roomId });
+        document.getElementById('startGameBtn').style.display = 'none';
+        updateStatus('🎮 بازی شروع شد!');
+        addLog('🎮 بازی شروع شد!');
+    }
+
+    function renderRoom(room) {
+        let container = document.getElementById('playersArea');
+        container.innerHTML = '';
+        room.players.forEach(p => {
+            let div = document.createElement('div');
+            div.className = 'player';
+            div.innerHTML = `<div class="player-name"><span>${p.name} ${p.id === myId ? '👈' : ''}</span></div>`;
+            container.appendChild(div);
+        });
+    }
+
+    function renderGame(state) {
+        let container = document.getElementById('playersArea');
+        container.innerHTML = '';
+        state.players.forEach(p => {
+            let isCurrent = state.currentTurn === p.id;
+            let div = document.createElement('div');
+            div.className = `player ${isCurrent ? 'current' : ''}`;
+            let handHtml = '';
+            if (p.id === myId && state.currentTurn === myId && !state.winner) {
+                handHtml = p.hand.map(c => {
+                    const isSelected = (selectedCard === c);
+                    return `<div class="card ${isSelected ? 'selected' : ''}" onclick="selectCard('${c}')"><span>${getIcon(c)}</span><br>${c}</div>`;
+                }).join('');
+            } else {
+                handHtml = p.hand.map(() => `<div class="card card-back"></div>`).join('');
+            }
+            div.innerHTML = `
+                <div class="player-name"><span>${p.name} ${p.id === myId ? '(شما)' : ''}</span><span>🃏 ${p.hand.length}</span></div>
+                <div class="stats"><span class="eggs">🥚 ${p.eggs}</span><span class="chicks">🐥 ${p.chicks}</span></div>
+                <div class="hand">${handHtml}</div>
+            `;
+            container.appendChild(div);
+        });
+        document.getElementById('turnText').innerHTML = state.winner ? '🏁 بازی تمام شد!' : `🎯 نوبت: ${state.players.find(p => p.id === state.currentTurn)?.name || '...'}`;
+    }
+
+    function getIcon(c) {
+        return { 'مرغ':'🐔','خروس':'🐓','لانه':'🪹','روباه':'🦊','مار':'🐍','تله':'🎯' }[c] || '🃏';
+    }
+
+    function selectCard(c) {
+        playClick();
+        if (selectedCard === c) {
+            selectedCard = null;
+        } else {
+            selectedCard = c;
+        }
+        socket.emit('getGameState', { roomId });
+    }
+
+    function addChatMessage(sender, msg, time) {
+        let chatDiv = document.getElementById('chatMessages');
+        chatDiv.innerHTML += `<div class="chat-message"><span class="chat-sender">${sender}</span><span class="chat-time">${time || new Date().toLocaleTimeString()}</span><br>${msg}</div>`;
+        chatDiv.scrollTop = chatDiv.scrollHeight;
+    }
+
+    function sendChat() {
+        let input = document.getElementById('chatInput');
+        let msg = input.value.trim();
+        if (msg) {
+            socket.emit('chatMessage', { roomId, message: msg });
+            input.value = '';
+        }
+    }
+
+    function sendAction(action, data, actionName) {
+        if (!socket) { addLog('❌ به سرور متصل نیستی!'); return; }
+        if (!roomId) { addLog('❌ هنوز وارد اتاق نشدی!'); return; }
+        socket.emit('gameAction', { roomId, action, data });
+        selectedCard = null;
+        if (actionName) {
+            socket.emit('actionDone', { roomId, player: myName, action: actionName });
+            addLog(`✅ ${actionName}`);
+        }
+    }
+
+    // ===== توابع اکشن با مودال =====
+    function layEgg() {
+        sendAction('lay', null, 'تخم گذاشت 🥚');
+    }
+
+    function hatch() {
+        sendAction('hatch', null, 'جوجه کرد 🐥');
+    }
+
+    function foxAttack() {
+        if (!gameState) {
+            addLog('⏳ در حال دریافت وضعیت...');
+            socket.emit('getGameState', { roomId });
+            setTimeout(() => { if (gameState) foxAttack(); }, 500);
+            return;
+        }
+        const others = gameState.players.filter(p => p.id !== myId && p.eggs > 0);
+        if (others.length === 0) {
+            addLog('❌ هیچ بازیکنی تخم ندارد!');
+            showBigMessage('❌ هیچ بازیکنی تخم ندارد!', true);
+            return;
+        }
+        let btns = others.map(p => ({
+            text: `${p.name} (🥚 ${p.eggs})`,
+            class: 'green',
+            action: () => {
+                sendAction('fox', { target: p.id }, `با روباه به ${p.name} حمله کرد 🦊`);
+                closeModal();
+            }
+        }));
+        showModal('🦊 به کدام بازیکن حمله کنی؟', btns, 'انتخاب کن تا روباه بهش حمله کنه');
+    }
+
+    function snakeAttack() {
+        if (!gameState) {
+            addLog('⏳ در حال دریافت وضعیت...');
+            socket.emit('getGameState', { roomId });
+            setTimeout(() => { if (gameState) snakeAttack(); }, 500);
+            return;
+        }
+        const others = gameState.players.filter(p => p.id !== myId && p.eggs > 0);
+        if (others.length === 0) {
+            addLog('❌ هیچ بازیکنی تخم ندارد!');
+            showBigMessage('❌ هیچ بازیکنی تخم ندارد!', true);
+            return;
+        }
+        let btns = others.map(p => ({
+            text: `${p.name} (🥚 ${p.eggs})`,
+            class: 'green',
+            action: () => {
+                closeModal();
+                let cntBtns = [
+                    { text: '💔 ۱ تخم', class: 'green', action: () => {
+                        sendAction('snake', { target: p.id, count: 1 }, `${p.name} را با مار زد 🐍 (۱ تخم)`);
+                        closeModal();
+                    }},
+                    { text: '💔💔 ۲ تخم', class: 'red', action: () => {
+                        sendAction('snake', { target: p.id, count: 2 }, `${p.name} را با مار زد 🐍 (۲ تخم)`);
+                        closeModal();
+                    }}
+                ];
+                showModal(`🐍 برای ${p.name} چند تخم بشکنی؟`, cntBtns);
+            }
+        }));
+        showModal('🐍 به کدام بازیکن حمله کنی؟', btns, 'انتخاب کن تا مار بهش حمله کنه');
+    }
+
+    function trapAction() {
+        if (!gameState) {
+            addLog('⏳ در حال دریافت وضعیت...');
+            socket.emit('getGameState', { roomId });
+            setTimeout(() => { if (gameState) trapAction(); }, 500);
+            return;
+        }
+        const others = gameState.players.filter(p => p.id !== myId);
+        let hasAnimal = others.filter(p => p.hand.some(c => ['مرغ','خروس','روباه','مار'].includes(c)));
+        if (hasAnimal.length === 0) {
+            addLog('❌ هیچ بازیکنی کارت حیوانی ندارد!');
+            showBigMessage('❌ هیچ بازیکنی کارت حیوانی ندارد!', true);
+            return;
+        }
+        let btns = hasAnimal.map(p => ({
+            text: `${p.name} (${p.hand.filter(c => ['مرغ','خروس','روباه','مار'].includes(c)).length} کارت)`,
+            class: 'green',
+            action: () => {
+                closeModal();
+                let animals = p.hand.filter(c => ['مرغ','خروس','روباه','مار'].includes(c));
+                if (animals.length === 0) {
+                    addLog('❌ این بازیکن کارت حیوانی ندارد!');
+                    showModal('🎯 کارت ${p.name} را حذف کنی؟', [{ text: '❌ بازگشت', class: 'red', action: () => { closeModal(); } }]);
+                    return;
+                }
+                let animalBtns = animals.map(c => ({
+                    text: `${getIcon(c)} ${c}`,
+                    class: 'purple',
+                    action: () => {
+                        sendAction('trap', { target: p.id, card: c }, `کارت ${c} را از ${p.name} حذف کرد 🎯`);
+                        closeModal();
+                    }
+                }));
+                showModal(`🎯 کارت ${p.name} را حذف کنی؟`, animalBtns, 'یک کارت حیوانی از دست حریف حذف کن');
+            }
+        }));
+        showModal('🎯 به کدام بازیکن تله بزنی؟', btns, 'انتخاب کن تا تله رو بندازی');
+    }
+
+    function drawCard() {
+        sendAction('draw', null, 'کارت کشید 🎴');
+    }
+
+    function discardCard() {
+        if (!selectedCard) {
+            addLog('❌ ابتدا یک کارت را انتخاب کنید!');
+            showBigMessage('❌ یک کارت انتخاب کن!', true);
+            return;
+        }
+        const card = selectedCard;
+        sendAction('discard', { card: card }, 'کارت ' + card + ' را باطل کرد 🗑️');
+        selectedCard = null;
+    }
+
+    function endTurnManually() {
+        sendAction('endTurn', null, 'نوبت را تمام کرد ⏹️');
+    }
+
+    // ===== اتصال دکمه‌ها =====
+    document.getElementById('createRoomBtn').onclick = createRoom;
+    document.getElementById('joinRoomBtn').onclick = joinRoom;
+    document.getElementById('startGameBtn').onclick = startGame;
+    document.getElementById('layBtn').onclick = layEgg;
+    document.getElementById('hatchBtn').onclick = hatch;
+    document.getElementById('foxBtn').onclick = foxAttack;
+    document.getElementById('snakeBtn').onclick = snakeAttack;
+    document.getElementById('trapBtn').onclick = trapAction;
+    document.getElementById('drawBtn').onclick = drawCard;
+    document.getElementById('discardBtn').onclick = discardCard;
+    document.getElementById('endTurnBtn').onclick = endTurnManually;
+    document.getElementById('bigMessageBtn').onclick = showCustomMessage;
+    document.getElementById('sendBtn').onclick = sendChat;
+    document.getElementById('chatInput').addEventListener('keypress', (e) => { if(e.key === 'Enter') sendChat(); });
+
+    setTimeout(() => {
+        let w = document.getElementById('welcomeAnim');
+        if(w) w.style.display = 'none';
+        document.getElementById('gameContainer').style.display = 'block';
+    }, 2800);
+
+    connectSocket();
+</script>
+</body>
+</html>
